@@ -1,0 +1,11 @@
+{
+    "name": "angular-print-button",
+    "version": "0.0.1",
+    "private": true,
+    "devDependencies": {
+        "grunt": "~0.4.2",
+        "grunt-contrib-clean": "~0.5.0",
+        "grunt-contrib-concat": "~0.3.0",
+        "grunt-html2js": "~0.2.4"
+    }
+}
