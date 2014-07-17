@@ -13,7 +13,7 @@ module.exports = function(grunt){
                 options:{
                     base: 'src/'
                 },
-                src: 'src/**/*.tpl.html',
+                src: 'src/**/*.tpl.*',
                 dest: 'dist/angular-print-button.tpl.js',
                 module: 'templates.printButton'
             }

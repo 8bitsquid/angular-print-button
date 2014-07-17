@@ -2,99 +2,150 @@ angular.module('printButton', ['8bitsquid.printButton']);
 
 angular.module('8bitsquid.printButton', ['templates.printButton'])
 
-    .service('PrintService', ['$window', '$templateCache', '$q', function($window, $templateCache, $q){
-        var items, printwin;
-        var tpl = $templateCache.get('templates/print-page.tpl.html');
+    .factory('PrintFactory', ['$window', '$templateCache', '$compile', '$rootScope', function($window, $templateCache, $compile, $rootScope){
 
-        this.print = function(itemsList){
-            items = itemsList;
-            printwin = $window.open('about:blank', '_print');
+        var templates = {
+            html: 'print_templates/print_image/print-image.tpl.html',
+            css: 'print_templates/print_image/print-image.tpl.css'
+        };
 
-            loadItems().then(function(){
-                printwin.document.write(tpl);
-                printwin.document.close();
-            });
+        function setTemplates(tpl){
+            angular.copy(tpl, templates);
+        }
+        
+        function getTemplate(type){
+            return $templateCache.get(templates[type]);
         }
 
-        function loadItems(){
-            var deferred = $q.defer();
+        return function(items){
+            // Inspiration from printThis.js: https://github.com/jasonday/printThis/blob/master/printThis.js#L40-L69
+            var IE = navigator.userAgent.match(/msie/i);
+            var strFrameName = "printThis-" + (new Date()).getTime();
+            var frame = angular.element("<iframe scrolling='no' id='" + strFrameName + "' name='printIframe' />");
+            angular.element(document.body).append(frame);
+
+            var $iframe = angular.element(document.getElementById(strFrameName));
+            $iframe.css({
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                top: '-150%',
+                left: '-150%',
+                border: 'none',
+                margin: '0'
+            });
+            $iframe[0].contentWindow.document.write($templateCache.get('print_templates/print-page.tpl.html'));
+
+            var $doc = $iframe.contents();
+            if (IE){
+                $doc.find("head").append('<script>document.domain="' + document.domain + '";</script>');
+            }
 
             setTimeout(function(){
-                printwin.document.open();
-                printwin.items = items;
-                deferred.resolve();
-            }, 100)
+
+                var html = getTemplate('html');
+                var css = getTemplate('css');
+
+                $doc.find('style').append(css);
+                $doc.find('body').append(html);
+
+                var scope = $rootScope.$new(true);
+                scope.items = items;
+                $compile($doc)(scope);
+                scope.$apply();
+
+                setTimeout(function() {
+                    if (IE) {
+                        window.frames["printIframe"].focus();
+                        $iframe[0].contentWindow.document.execCommand('print', false, null);
+
+                    } else {
+                        $iframe[0].contentWindow.focus();
+                        $iframe[0].contentWindow.print();
+                    }
+                    var close = setInterval(function(){
+                        if(document.readyState=="complete") {
+                            $iframe.remove();
+                            clearInterval(close);
+                        }
+                    }, 400);
+                }, 300);
+            }, 200);
+        };
+    }])
+
+    .factory('PrintImage', ['PrintFactory', '$q', function(PrintFactory, $q){
+
+        function loadImage(src, index){
+            var deferred = $q.defer();
+            var img = new Image();
+
+            img.onload = function(){
+                deferred.resolve({img: img, index: index});
+            };
+            img.src = src;
 
             return deferred.promise;
         }
+
+        return function(items){
+            var total = items.length;
+            var loaded = 1;
+            for (var i=0; i<total; i++){
+                loadImage(items[i].src, i).then(function(item){
+                    items[item.index].orientation = item.img.width > item.img.height ? 'landscape' : 'portrait';
+                    if (loaded < total) loaded++;
+                    else {
+                        PrintFactory(items);
+                    }
+                })
+            }
+        }
     }])
 
-    .directive('printButton', ['PrintService', function(PrintService){
+    .directive('printImage', ['PrintImage', function(PrintImage){
         return {
             restrict: 'AC',
             link: function(scope){
                 scope.print = function(items){
-                    PrintService.print(items);
+                    PrintImage(items);
                 }
             }
         }
     }]);
 
 
-angular.module('templates.printButton', ['templates/print-page.tpl.html']);
 
-angular.module("templates/print-page.tpl.html", []).run(["$templateCache", function($templateCache) {
-  $templateCache.put("templates/print-page.tpl.html",
-    "<html ng-app=\"print\">\n" +
+angular.module('templates.printButton', ['print_templates/print-page.tpl.html', 'print_templates/print_image/print-image.tpl.css', 'print_templates/print_image/print-image.tpl.html']);
+
+angular.module("print_templates/print-page.tpl.html", []).run(["$templateCache", function($templateCache) {
+  $templateCache.put("print_templates/print-page.tpl.html",
+    "<!DOCTYPE html>\n" +
+    "<html>\n" +
     "    <head>\n" +
     "        <title>Printing Items</title>\n" +
-    "        <style type=\"text/css\">\n" +
-    "            @page{size: auto; margin: 0mm;}\n" +
-    "            body{margin: 0px}  @media all { display: block; page-break-before: always; }\n" +
-    "            img { max-width: 100% !important; max-height: 100% !important; }\n" +
-    "            .landscape { width: 100%; height: auto; }\n" +
-    "            .portrait {height: 100%;width: auto; }\n" +
+    "        <style type=\"text/css\" rel=\"stylesheet\" media=\"all\">\n" +
+    "            html, body{\n" +
+    "                height: 100%;\n" +
+    "                width: 100%;\n" +
+    "            }\n" +
     "        </style>\n" +
     "    </head>\n" +
-    "    <body ng-controller=\"PrintCtrl\">\n" +
-    "        <img print-image ng-src=\"{{item.src}}\" ng-class=\"item.orientation\" ng-repeat=\"item in items\" />\n" +
-    "        <script src=\"//ajax.googleapis.com/ajax/libs/angularjs/1.2.14/angular.min.js\"></script>\n" +
-    "        <script>\n" +
-    "            angular.module('print', [])\n" +
-    "                    .controller('PrintCtrl', ['$scope', '$q', function($scope, $q){\n" +
-    "                        $scope.items = window.items;\n" +
-    "                    }])\n" +
-    "                    .directive('printImage', [function(){\n" +
-    "                        return {\n" +
-    "                            restrict: 'AC',\n" +
-    "                            controller: ['$q', function($q){\n" +
-    "                                this.loadImage = function(src){\n" +
-    "                                    var deferred = $q.defer();\n" +
-    "                                    var img = new Image();\n" +
-    "\n" +
-    "                                    img.onload = function(){\n" +
-    "                                        deferred.resolve(img);\n" +
-    "                                    };\n" +
-    "                                    img.src = src;\n" +
-    "\n" +
-    "                                    return deferred.promise;\n" +
-    "                                };\n" +
-    "                            }],\n" +
-    "                            link: function(scope, elm, attrs, Ctrl){\n" +
-    "                                console.log(scope);\n" +
-    "                                Ctrl.loadImage(scope.item.src).then(function(img){\n" +
-    "                                    scope.item.orientation = img.width > img.height ? 'landscape' : 'portrait';\n" +
-    "                                    if (scope.$last){\n" +
-    "                                        var t = setTimeout(function(){\n" +
-    "                                            window.focus(); window.print(); window.close();\n" +
-    "                                            clearTimeout(t);\n" +
-    "                                        }, 100);\n" +
-    "                                    }\n" +
-    "                                });\n" +
-    "                            }\n" +
-    "                        }\n" +
-    "                    }])\n" +
-    "        </script>\n" +
+    "    <body>\n" +
     "    </body>\n" +
     "</html>");
+}]);
+
+angular.module("print_templates/print_image/print-image.tpl.css", []).run(["$templateCache", function($templateCache) {
+  $templateCache.put("print_templates/print_image/print-image.tpl.css",
+    "@page{size: auto; margin: 0mm;}\n" +
+    "body{margin: 0px}\n" +
+    "img { max-width: 100% !important; max-height: 100% !important; display: block; page-break-before: always;}\n" +
+    ".landscape { width: 100%; height: auto; }\n" +
+    ".portrait {height: 100%;width: auto; }");
+}]);
+
+angular.module("print_templates/print_image/print-image.tpl.html", []).run(["$templateCache", function($templateCache) {
+  $templateCache.put("print_templates/print_image/print-image.tpl.html",
+    "<img print-image ng-src=\"{{item.src}}\" ng-class=\"item.orientation\" ng-repeat=\"item in items\"/>");
 }]);
