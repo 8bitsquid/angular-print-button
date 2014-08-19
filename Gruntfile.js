@@ -19,9 +19,13 @@ module.exports = function(grunt){
             }
         },
         concat: {
-            build: {
+            js: {
                 src: ['src/**/*.js', 'dist/*.tpl.js'],
                 dest: 'dist/angular-print-button.js'
+            },
+            css: {
+                src: ['src/**/*.css'],
+                dest: 'dist/angular-print-button.css'
             }
         }
     });
