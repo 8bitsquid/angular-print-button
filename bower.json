@@ -1,0 +1,17 @@
+{
+  "name": "angular-print-button",
+  "description": "",
+  "main": "dist/angular-print-button.js",
+  "authors": [
+    "Will Jones <the8bitsquid@gmail.com>"
+  ],
+  "homepage": "https://github.com/8bitsquid/angular-print-button",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
